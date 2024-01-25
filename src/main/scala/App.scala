@@ -175,26 +175,18 @@ object App {
 		******************************************************************/
 
 		// Recupération des données de la table review
-		/*
-		Après vérification, même si les attributs review_id et business_id ne sont pas définis comme clé primaire / étrangère 
-		dans la base, ils ne sont jamais null
-		*/
+
 		val queryGetReviews =
 		"""
 			|SELECT review_id, user_id, business_id, stars, date
 			|FROM yelp.review
 			|WHERE business_id is not null
-			|LIMIT 10
 		""".stripMargin
 
 		var reviews = spark.read.jdbc(urlPostgres, s"($queryGetReviews) as review", connectionPropertiesPostgres)
 
 		// affichage du schéma
 		// reviews.printSchema()
-
-		// recuperation de données
-		//reviews.limit(10).show()
-
 
 		// Les données de la table "user" sont récupérées dans la partie "Ajout de données au data warehouse - base de données Oracle"
 		// car on n'effectue pas de transformation dessus
@@ -210,8 +202,8 @@ object App {
 		// Chargement du fichier JSON
 		var business = spark.read.json(businessFile).cache()
 
-		// On ne conserve que les 200 premières lignes pour tester
-		// business = business.limit(200)
+		// On conserve que les 20 premières lignes pour tester
+		// business = business.limit(20)
 
 		// affichage du schéma
 		// business.printSchema()
@@ -237,8 +229,7 @@ object App {
 		 */
 
 		// Extraction des dates, qui formeront une table "date"
-		val first_checkins = checkins.limit(10)
-		var visitDates = first_checkins.withColumn("date", explode(org.apache.spark.sql.functions.split(col("date"), ",")))
+		var visitDates = checkins.withColumn("date", explode(org.apache.spark.sql.functions.split(col("date"), ",")))
 
 		// Formatage des dates pour ne pas avoir plus de précision que le jour (YYYY-MM-DD) tout en gardant le business_id
 		visitDates = visitDates.withColumn("date", regexp_replace(col("date"), "\\d{2}:\\d{2}:\\d{2}", ""))
@@ -247,16 +238,16 @@ object App {
 		// visitDates.show(10)
 
 		// On compte le nombre de valeurs (visites) par combinaison business_id - date 
-		val nb_visites_by_date_and_business = visitDates.groupBy("business_id", "date").count()
-												.withColumnRenamed("count", "nb_visites")
+		val nb_visits_by_date_and_business = visitDates.groupBy("business_id", "date").count()
+												.withColumnRenamed("count", "nb_visits")
 
 		// Et le nombre de visites par business_id
-		val nb_visites_by_business = nb_visites_by_date_and_business.groupBy("business_id").sum("nb_visites")
-												.withColumnRenamed("sum(nb_visites)", "nb_visites")
+		val nb_visits_by_business = nb_visits_by_date_and_business.groupBy("business_id").sum("nb_visits")
+												.withColumnRenamed("sum(nb_visits)", "nb_visits")
 
-		// Top 10
-		// nb_visites_by_date_and_business.orderBy(desc("nb_visites")).show(10)
-		// nb_visites_by_business.orderBy(desc("nb_visites")).show(10)
+		// Affichage du top 10
+		// nb_visits_by_date_and_business.orderBy(desc("nb_visits")).show(10)
+		// nb_visits_by_business.orderBy(desc("nb_visits")).show(10)
 
 
 		/*********************************************************
@@ -275,13 +266,10 @@ object App {
 		// affichage du schéma
 		// tips.printSchema()
 
-		// recuperation de données
-		// tips.limit(10).show()
-
 		// On compte le nombre de tips par business_id
 		val nb_tips_by_business = tips.groupBy("business_id").count().withColumnRenamed("count", "nb_tips")
 
-		// Top 10
+		// Affichage du top 10
 		// nb_tips_by_business.orderBy(desc("count")).show(10)
 
 		// Nombre total de tips	-> 1 363 162
@@ -317,15 +305,11 @@ object App {
 						.filter(col("business_id").isNotNull)
 						.filter(col("date_id").isNotNull)
 
-		// On affiche les 10 premières lignes
-		// reviews.show(10)
-
-
 		// On compte le nombre de review par business_id
 		// Normalement c'est ce qui est contenu dans l'attribut "review_count" de la table "business"
 		val nb_reviews_by_business = reviews.groupBy("business_id").count().withColumnRenamed("count", "nb_reviews")
 
-		// Top 10
+		// Affichage du top 10
 		// nb_reviews_by_business.orderBy(desc("count")).show(10)
 
 
@@ -340,16 +324,15 @@ object App {
 		// Extraction de l'information de l'ouverture du business par jour
 		// La colonne "hours" contient un objet JSON avec les jours de la semaine et les horaires d'ouverture
 		var openDays = business.select("business_id", "hours")
-		// On crée une colonne par jour de la semaine qui contient un booléen indiquant si le business est ouvert ce jour là
-		openDays = openDays.withColumn("is_open_monday", col("hours.Monday").isNotNull)
-				.withColumn("is_open_tuesday", col("hours.Tuesday").isNotNull)
-				.withColumn("is_open_wednesday", col("hours.Wednesday").isNotNull)
-				.withColumn("is_open_thursday", col("hours.Thursday").isNotNull)
-				.withColumn("is_open_friday", col("hours.Friday").isNotNull)
-				.withColumn("is_open_saturday", col("hours.Saturday").isNotNull)
-				.withColumn("is_open_sunday", col("hours.Sunday").isNotNull)
-				.drop(col("hours"))
-
+		// On crée une colonne par jour de la semaine qui contient 1 si le business est ouvert ce jour là et 0 sinon
+		openDays = openDays.withColumn("is_open_monday", when(col("hours.Monday").isNotNull, 1).otherwise(0))
+							.withColumn("is_open_tuesday", when(col("hours.Tuesday").isNotNull, 1).otherwise(0))
+							.withColumn("is_open_wednesday", when(col("hours.Wednesday").isNotNull, 1).otherwise(0))
+							.withColumn("is_open_thursday", when(col("hours.Thursday").isNotNull, 1).otherwise(0))
+							.withColumn("is_open_friday", when(col("hours.Friday").isNotNull, 1).otherwise(0))
+							.withColumn("is_open_saturday", when(col("hours.Saturday").isNotNull, 1).otherwise(0))
+							.withColumn("is_open_sunday", when(col("hours.Sunday").isNotNull, 1).otherwise(0))
+							.drop(col("hours"))
 
 		// Extraction des catégories
 		var business_categories = business.select("business_id", "categories")
@@ -360,10 +343,6 @@ object App {
 		// On crée une colonne "main_categorie" qui contient la catégorie principale du business
 		var business_main_categorie = business_categories.withColumn("main_categorie", getMainCategorieUDF(col("categories")))
 											.drop(col("categories"))
-
-		// Affichage des 10 premières lignes
-		// business_main_categorie.show(100)
-
 
 		// Suppression des colonnes inutiles dans le dataframe "business"
 		business = business.drop(col("categories"))
@@ -381,13 +360,13 @@ object App {
 		business_main_categorie.unpersist()
 
 
-		// On joint les DataFrames "business" et "nb_visites_by_business" pour ajouter la colonne "nb_visites" à "business"
+		// On joint les DataFrames "business" et "nb_visits_by_business" pour ajouter la colonne "nb_visites" à "business"
 		// Jointure externe pour ne pas perdre les business qui n'ont pas de nombre de visites
-		business = business.join(nb_visites_by_business, business("business_id") === nb_visites_by_business("business_id"), "left_outer")
-							.drop(nb_visites_by_business("business_id"))
+		business = business.join(nb_visits_by_business, business("business_id") === nb_visits_by_business("business_id"), "left_outer")
+							.drop(nb_visits_by_business("business_id"))
 
 		// On libère la mémoire
-		nb_visites_by_business.unpersist()
+		nb_visits_by_business.unpersist()
 
 
 		// On joint les DataFrames "business" et "openDays" pour ajouter les colonnes "is_open_xxx" à "business"
@@ -412,6 +391,9 @@ object App {
 		business = business.join(nb_tips_by_business, business("business_id") === nb_tips_by_business("business_id"), "left_outer")
 							.drop(nb_tips_by_business("business_id"))
 
+
+		// Affichage du schéma
+		// business.printSchema()
 
 		// Pour tester :
 		// business.show(20)
@@ -438,6 +420,14 @@ object App {
 		// reviews.unpersist()
 
 
+		// Réorganisation des colonnes du DataFrame business
+		// business = business.select("business_id", "name", "main_categorie", "address", "postal_code", "city", "state", "latitude", "longitude", "avg_stars", "review_count", "is_open", "nb_visits", "nb_reviews", "nb_tips", "is_open_monday", "is_open_tuesday", "is_open_wednesday", "is_open_thursday", "is_open_friday", "is_open_saturday", "is_open_sunday")
+		// Enregistrement du DataFrame business dans la table "business"
+		// business.write.mode(SaveMode.Overwrite).jdbc(urlOracle, "business", connectionPropertiesOracle)
+		// Libération de la mémoire
+		// business.unpersist()
+
+
 		// Recupération des données de la table "user" depuis la base de données Postgres
 		// et enregistrement dans la table "users" de la base de données Oracle
 		val queryGetUsers =
@@ -445,7 +435,6 @@ object App {
 			|SELECT user_id, review_count, yelping_since
 			|FROM yelp."user"
 			|WHERE user_id is not null
-			|LIMIT 10
 		""".stripMargin
 
 		// val users = spark.read.jdbc(urlPostgres, s"($queryGetUsers) as review", connectionPropertiesPostgres)
@@ -456,12 +445,19 @@ object App {
 		// recuperation de données
 		// users.limit(10).show()
 
-		// Enregistrement du DataFrame user dans la table "user"
-		// users.write.mode(SaveMode.Overwrite).jdbc(urlOracle, "user", connectionPropertiesOracle)
+		// Enregistrement du DataFrame user dans la table "consumer" (user est un mot réservé en Oracle)
+		// users.write.mode(SaveMode.Overwrite).jdbc(urlOracle, "consumer", connectionPropertiesOracle)
 		// Libération de la mémoire
 		// users.unpersist()
 
 
+
+		/******************************************************************
+			Création d'index sur les tables pour accélérer les requêtes
+		*******************************************************************/
+
+		// Création d'un index sur la colonne "business_id" de la table "review"
+		// spark.sql("CREATE INDEX review_business_id_index ON review(business_id)")
 
 		// Arrêt de la session Spark
 		spark.stop()
