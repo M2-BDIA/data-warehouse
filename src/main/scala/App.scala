@@ -6,6 +6,17 @@ import java.util.Properties
 
 object App {
 
+	// Fonction qui prend en entrée une liste de strings et une liste de mots
+	// et retourne true si au moins un des mots est présent dans au moins une des chaînes de caractères
+	def isWordsInStrings(strings: Seq[String], words: Seq[String]): Boolean = {
+		for (str <- strings) {
+			if(words.exists(word => str.contains(word))) {
+				return true
+			}
+		}
+		return false
+	}
+
 	// Fonction qui prend en entrée un string contenant des valeurs séparées par une virgule
 	// et retourne une des valeurs sous forme de string
 	def getMainCategorie(str_categories: String): String = {
@@ -23,6 +34,9 @@ object App {
 
 		// On cherche si une des catégories est relative à la restauration / vente de nourriture ou de boissons
 		var motsRestauration = Seq("restau", "food", "drink", "bar", "cafe", "coffee", "tea", "breakfast", "brunch", "lunch", "dinner", "bistro", "pub", "brewery", "beer", "wine", "bakery", "cuisine", "caterer")
+		// if(isWordsInStrings(categories, motsRestauration)) {
+		// 	return "restaurant"
+		// }
 		for (categorie <- categories) {
 			if(motsRestauration.exists(mot => categorie.contains(mot))) {
 				return "restauration"
@@ -31,6 +45,9 @@ object App {
 
 		// On cherche si une des catégories est relative à la vente et au commerce
 		val motsCommerce = Seq("shop", "store", "market", "market", "boutique", "commerce", "commercial", "retail", "sale", "buy", "purchase", "sell", "vendor", "dealer", "mall", "grocery", "pharmacy", "drugstore", "bookstore", "library", "florist")
+		// if(isWordsInStrings(categories, motsCommerce)) {
+		// 	return "shopping"
+		// }
 		for (categorie <- categories) {
 			if(motsCommerce.exists(mot => categorie.contains(mot))) {
 				return "shopping"
@@ -39,14 +56,21 @@ object App {
 
 		// On cherche si une des catégories est relative à la santé / médecine
 		val motsSante = Seq("health", "medica", "salon", "clinic", "hospital", "doctor", "dentist", "pharma", "medicin")
+		// if(isWordsInStrings(categories, motsSante)) {
+		// 	return "medical"
+		// }
 		for (categorie <- categories) {
 			if(motsSante.exists(mot => categorie.contains(mot))) {
 				return "medical"
 			}
 		}
+		
 
 		// On cherche si une des catégories est relative au soin du corps / beauté
 		val motsSoins = Seq("beauty", "spa", "hair", "nail", "tattoo", "piercing", "wax", "massage", "salon", "life")
+		// if(isWordsInStrings(categories, motsSoins)) {
+		// 	return "beauty"
+		// }
 		for (categorie <- categories) {
 			if(motsSoins.exists(mot => categorie.contains(mot))) {
 				return "beauty"
@@ -55,6 +79,9 @@ object App {
 
 		// On cherche si une des catégories est relative à l'automobile / réparation
 		val motsAutomobile = Seq("auto", "moto", "car", "repair", "garage", "mechanic", "tire", "wheel")
+		// if(isWordsInStrings(categories, motsAutomobile)) {
+		// 	return "automobile"
+		// }
 		for (categorie <- categories) {
 			if(motsAutomobile.exists(mot => categorie.contains(mot))) {
 				return "automobile"
@@ -63,6 +90,9 @@ object App {
 
 		// On cherche si une des catégories est relative aux lieux de culte
 		val motsReligion = Seq("church", "temple", "mosque", "synagogue", "religio", "spiritual", "faith", "worship", "pray")
+		// if(isWordsInStrings(categories, motsReligion)) {
+		// 	return "religion"
+		// }
 		for (categorie <- categories) {
 			if(motsReligion.exists(mot => categorie.contains(mot))) {
 				return "religion"
@@ -71,6 +101,9 @@ object App {
 
 		// On cherche si une des catégories est relative aux loisirs / divertissements
 		val motsLoisirs = Seq("entertainment", "fun", "leisure", "recreation", "game", "play", "sport", "gym", "hobby", "activity", "event", "party", "dance", "music", "concert", "movie", "film", "theater", "cinema", "show", "amusement", "park", "zoo", "museum", "art", "gallery", "exhibit", "exhibition", "tourism", "tourist", "travel", "voyage", "vacation", "holiday", "trip", "visit", "sightseeing", "sightsee", "attraction", "tour", "excursion", "cruise", "cruising", "carnival", "festival")
+		// if(isWordsInStrings(categories, motsLoisirs)) {
+		// 	return "entertainment"
+		// }
 		for (categorie <- categories) {
 			if(motsLoisirs.exists(mot => categorie.contains(mot))) {
 				return "entertainment"
@@ -79,12 +112,15 @@ object App {
 
 		// On cherche si une des catégories est relative aux services
 		val motsService = Seq("service", "event", "planning", "photo", "repair", "mobile", "electronics", "computer", "clean", "wash", "laundry", "dry", "cleaning", "delivery", "shipping", "transport", "moving", "storage", "logistic")
+		// if(isWordsInStrings(categories, motsService)) {
+		// 	return "service"
+		// }
 		for (categorie <- categories) {
 			if(motsService.exists(mot => categorie.contains(mot))) {
 				return "service"
 			}
 		}
-		
+
 
 		// Si on ne trouve pas de catégorie parmi celles prédéfinies, on retourne la première
 		return categories(0)
@@ -95,6 +131,9 @@ object App {
 		/************************************************
 			Paramètres du programme et initialisation
 		************************************************/
+
+		// Création de la fonction UDF qui permettra d'extraire la catégorie principale d'un business
+		val getMainCategorieUDF = udf(getMainCategorie _)
 
 		// Chargement des variables d'environnement depuis le fichier .env
 		val env = scala.collection.mutable.Map[String, String]()
@@ -171,6 +210,9 @@ object App {
 		// Chargement du fichier JSON
 		var business = spark.read.json(businessFile).cache()
 
+		// On ne conserve que les 200 premières lignes pour tester
+		// business = business.limit(200)
+
 		// affichage du schéma
 		// business.printSchema()
 
@@ -195,22 +237,22 @@ object App {
 		 */
 
 		// Extraction des dates, qui formeront une table "date"
-		// val first_checkins = checkins.limit(10)
-		// val visitDates = first_checkins.withColumn("date", explode(org.apache.spark.sql.functions.split(col("date"), ",")))
+		val first_checkins = checkins.limit(10)
+		var visitDates = first_checkins.withColumn("date", explode(org.apache.spark.sql.functions.split(col("date"), ",")))
 
 		// Formatage des dates pour ne pas avoir plus de précision que le jour (YYYY-MM-DD) tout en gardant le business_id
-		// val visitDatesReformat = visitDates.withColumn("date", regexp_replace(col("date"), "\\d{2}:\\d{2}:\\d{2}", ""))
+		visitDates = visitDates.withColumn("date", regexp_replace(col("date"), "\\d{2}:\\d{2}:\\d{2}", ""))
 
 		// On affiche les 10 premières lignes
-		// visitDatesReformat.show(10)
+		// visitDates.show(10)
 
 		// On compte le nombre de valeurs (visites) par combinaison business_id - date 
-		// val nb_visites_by_date_and_business = visitDatesReformat.groupBy("business_id", "date").count()
-		// 										.withColumnRenamed("count", "nb_visites")
+		val nb_visites_by_date_and_business = visitDates.groupBy("business_id", "date").count()
+												.withColumnRenamed("count", "nb_visites")
 
 		// Et le nombre de visites par business_id
-		// val nb_visites_by_business = nb_visites_by_date_and_business.groupBy("business_id").sum("nb_visites")
-		// 										.withColumnRenamed("sum(nb_visites)", "nb_visites")
+		val nb_visites_by_business = nb_visites_by_date_and_business.groupBy("business_id").sum("nb_visites")
+												.withColumnRenamed("sum(nb_visites)", "nb_visites")
 
 		// Top 10
 		// nb_visites_by_date_and_business.orderBy(desc("nb_visites")).show(10)
@@ -225,10 +267,10 @@ object App {
 		val tipsFile = env("TIP_FILE_PATH")
 
 		// Chargement du fichier CSV
-		// val tips = spark.read.format("csv").option("header", "true").load(tipsFile).cache()
+		var tips = spark.read.format("csv").option("header", "true").load(tipsFile).cache()
 
 		// On ne garde que la colonne business_id
-		// val tips = tips.select("business_id")
+		tips = tips.select("business_id")
 
 		// affichage du schéma
 		// tips.printSchema()
@@ -237,7 +279,7 @@ object App {
 		// tips.limit(10).show()
 
 		// On compte le nombre de tips par business_id
-		// val nb_tips_by_business = tips.groupBy("business_id").count()
+		val nb_tips_by_business = tips.groupBy("business_id").count().withColumnRenamed("count", "nb_tips")
 
 		// Top 10
 		// nb_tips_by_business.orderBy(desc("count")).show(10)
@@ -281,7 +323,7 @@ object App {
 
 		// On compte le nombre de review par business_id
 		// Normalement c'est ce qui est contenu dans l'attribut "review_count" de la table "business"
-		// val nb_reviews_by_business = reviews.groupBy("business_id").count()
+		val nb_reviews_by_business = reviews.groupBy("business_id").count().withColumnRenamed("count", "nb_reviews")
 
 		// Top 10
 		// nb_reviews_by_business.orderBy(desc("count")).show(10)
@@ -308,32 +350,75 @@ object App {
 				.withColumn("is_open_sunday", col("hours.Sunday").isNotNull)
 				.drop(col("hours"))
 
-		// On affiche les 10 premières lignes
-		// openDays.show(10)
 
 		// Extraction des catégories
-		val business_categories = business.select("business_id", "categories")
-		// business_categories = business_categories.withColumn("categories", explode(org.apache.spark.sql.functions.split(col("categories"), ",")))
+		var business_categories = business.select("business_id", "categories")
 
-		val getMainCategorieUDF = udf(getMainCategorie _)
-
+		// Suppression des lignes sans catégories (pose problème pour la fonction getMainCategorieUDF)
+		business_categories = business_categories.filter(col("categories").isNotNull)
+		
 		// On crée une colonne "main_categorie" qui contient la catégorie principale du business
 		var business_main_categorie = business_categories.withColumn("main_categorie", getMainCategorieUDF(col("categories")))
+											.drop(col("categories"))
 
 		// Affichage des 10 premières lignes
-		// business_categorie.show(10)
-
-		business_main_categorie.show(100)
-
-
-		// Extraction des attributs
-		// val attributes = business.select("business_id", "attributes")
+		// business_main_categorie.show(100)
 
 
 		// Suppression des colonnes inutiles dans le dataframe "business"
 		business = business.drop(col("categories"))
 							.drop(col("attributes"))
+							.drop(col("hours"))
 
+				
+		// On joint les DataFrames "business" et "business_main_categorie" pour ajouter la colonne "main_categorie" à "business"
+		// Jointure externe pour ne pas perdre les business qui n'ont pas de catégorie principale
+		business = business.join(business_main_categorie, business("business_id") === business_main_categorie("business_id"), "left_outer")
+							.drop(business_main_categorie("business_id"))
+
+		// On libère la mémoire
+		business_categories.unpersist()
+		business_main_categorie.unpersist()
+
+
+		// On joint les DataFrames "business" et "nb_visites_by_business" pour ajouter la colonne "nb_visites" à "business"
+		// Jointure externe pour ne pas perdre les business qui n'ont pas de nombre de visites
+		business = business.join(nb_visites_by_business, business("business_id") === nb_visites_by_business("business_id"), "left_outer")
+							.drop(nb_visites_by_business("business_id"))
+
+		// On libère la mémoire
+		nb_visites_by_business.unpersist()
+
+
+		// On joint les DataFrames "business" et "openDays" pour ajouter les colonnes "is_open_xxx" à "business"
+		// Jointure externe pour ne pas perdre les business qui n'ont pas d'information sur les jours d'ouverture
+		business = business.join(openDays, business("business_id") === openDays("business_id"), "left_outer")
+							.drop(openDays("business_id"))
+
+		// On renomme la colonne "stars" en "avg_stars" pour plus de clarté
+		business = business.withColumnRenamed("stars", "avg_stars")
+
+		// On libère la mémoire
+		openDays.unpersist()
+
+
+		// On joint les DataFrames "business" et "nb_reviews_by_business" pour ajouter la colonne "nb_reviews" à "business"
+		// Jointure externe pour ne pas perdre les business qui n'ont pas d'information sur les jours d'ouverture
+		business = business.join(nb_reviews_by_business, business("business_id") === nb_reviews_by_business("business_id"), "left_outer")
+							.drop(nb_reviews_by_business("business_id"))
+
+		// On joint les DataFrames "business" et "nb_tips_by_business" pour ajouter la colonne "nb_tips" à "business"
+		// Jointure externe pour ne pas perdre les business qui n'ont pas d'information sur les jours d'ouverture
+		business = business.join(nb_tips_by_business, business("business_id") === nb_tips_by_business("business_id"), "left_outer")
+							.drop(nb_tips_by_business("business_id"))
+
+
+		// Pour tester :
+		// business.show(20)
+
+		// On libère la mémoire
+		nb_reviews_by_business.unpersist()
+		nb_tips_by_business.unpersist()
 
 
 
