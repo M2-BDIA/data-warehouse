@@ -427,13 +427,28 @@ object App {
 		nb_tips_by_business.unpersist()
 
 
+		/*
+		 * Transformation de la table de dimension "date"
+		 * Ajout des colonnes "year", "month", "day", "week_number" et "day_of_week" 
+		*/
+
+		dates = dates.withColumn("year", year(col("date")))
+					.withColumn("month", month(col("date")))
+					.withColumn("day", dayofmonth(col("date")))
+					.withColumn("week_number", weekofyear(col("date")))
+					.withColumn("day_of_week", dayofweek(col("date")))	// 1 = dimanche, 2 = lundi, etc.
+
+		// Affichage des 10 premières lignes
+		// dates.show(10)
+
+
 
 		/******************************************************************
 			Ajout de données au data warehouse - base de données Oracle
 		*******************************************************************/
 
-		// Enregistrement du DataFrame date dans la table "date"
-		// dates.write.mode(SaveMode.Overwrite).jdbc(urlOracle, "date", connectionPropertiesOracle)
+		// Enregistrement du DataFrame date dans la table "date_detail" car "date" est un mot réservé en Oracle
+		// dates.write.mode(SaveMode.Overwrite).jdbc(urlOracle, "date_detail", connectionPropertiesOracle)
 		// Libération de la mémoire
 		// dates.unpersist()
 
@@ -442,6 +457,12 @@ object App {
 		// reviews.write.mode(SaveMode.Overwrite).jdbc(urlOracle, "review", connectionPropertiesOracle)
 		// Libération de la mémoire
 		// reviews.unpersist()
+
+
+		// Enregistrement du DataFrame visits dans la table "visit"
+		// visits.write.mode(SaveMode.Overwrite).jdbc(urlOracle, "visit", connectionPropertiesOracle)
+		// Libération de la mémoire
+		// visits.unpersist()
 
 
 		// Réorganisation des colonnes du DataFrame business
