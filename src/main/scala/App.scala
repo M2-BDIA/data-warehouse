@@ -34,9 +34,6 @@ object App {
 
 		// On cherche si une des catégories est relative à la restauration / vente de nourriture ou de boissons
 		var motsRestauration = Seq("restau", "food", "drink", "bar", "cafe", "coffee", "tea", "breakfast", "brunch", "lunch", "dinner", "bistro", "pub", "brewery", "beer", "wine", "bakery", "cuisine", "caterer")
-		// if(isWordsInStrings(categories, motsRestauration)) {
-		// 	return "restaurant"
-		// }
 		for (categorie <- categories) {
 			if(motsRestauration.exists(mot => categorie.contains(mot))) {
 				return "restauration"
@@ -45,9 +42,6 @@ object App {
 
 		// On cherche si une des catégories est relative à la vente et au commerce
 		val motsCommerce = Seq("shop", "store", "market", "market", "boutique", "commerce", "commercial", "retail", "sale", "buy", "purchase", "sell", "vendor", "dealer", "mall", "grocery", "pharmacy", "drugstore", "bookstore", "library", "florist")
-		// if(isWordsInStrings(categories, motsCommerce)) {
-		// 	return "shopping"
-		// }
 		for (categorie <- categories) {
 			if(motsCommerce.exists(mot => categorie.contains(mot))) {
 				return "shopping"
@@ -56,9 +50,6 @@ object App {
 
 		// On cherche si une des catégories est relative à la santé / médecine
 		val motsSante = Seq("health", "medica", "salon", "clinic", "hospital", "doctor", "dentist", "pharma", "medicin")
-		// if(isWordsInStrings(categories, motsSante)) {
-		// 	return "medical"
-		// }
 		for (categorie <- categories) {
 			if(motsSante.exists(mot => categorie.contains(mot))) {
 				return "medical"
@@ -68,9 +59,6 @@ object App {
 
 		// On cherche si une des catégories est relative au soin du corps / beauté
 		val motsSoins = Seq("beauty", "spa", "hair", "nail", "tattoo", "piercing", "wax", "massage", "salon", "life")
-		// if(isWordsInStrings(categories, motsSoins)) {
-		// 	return "beauty"
-		// }
 		for (categorie <- categories) {
 			if(motsSoins.exists(mot => categorie.contains(mot))) {
 				return "beauty"
@@ -79,9 +67,6 @@ object App {
 
 		// On cherche si une des catégories est relative à l'automobile / réparation
 		val motsAutomobile = Seq("auto", "moto", "car", "repair", "garage", "mechanic", "tire", "wheel")
-		// if(isWordsInStrings(categories, motsAutomobile)) {
-		// 	return "automobile"
-		// }
 		for (categorie <- categories) {
 			if(motsAutomobile.exists(mot => categorie.contains(mot))) {
 				return "automobile"
@@ -90,9 +75,6 @@ object App {
 
 		// On cherche si une des catégories est relative aux lieux de culte
 		val motsReligion = Seq("church", "temple", "mosque", "synagogue", "religio", "spiritual", "faith", "worship", "pray")
-		// if(isWordsInStrings(categories, motsReligion)) {
-		// 	return "religion"
-		// }
 		for (categorie <- categories) {
 			if(motsReligion.exists(mot => categorie.contains(mot))) {
 				return "religion"
@@ -101,9 +83,6 @@ object App {
 
 		// On cherche si une des catégories est relative aux loisirs / divertissements
 		val motsLoisirs = Seq("entertainment", "fun", "leisure", "recreation", "game", "play", "sport", "gym", "hobby", "activity", "event", "party", "dance", "music", "concert", "movie", "film", "theater", "cinema", "show", "amusement", "park", "zoo", "museum", "art", "gallery", "exhibit", "exhibition", "tourism", "tourist", "travel", "voyage", "vacation", "holiday", "trip", "visit", "sightseeing", "sightsee", "attraction", "tour", "excursion", "cruise", "cruising", "carnival", "festival")
-		// if(isWordsInStrings(categories, motsLoisirs)) {
-		// 	return "entertainment"
-		// }
 		for (categorie <- categories) {
 			if(motsLoisirs.exists(mot => categorie.contains(mot))) {
 				return "entertainment"
@@ -112,9 +91,6 @@ object App {
 
 		// On cherche si une des catégories est relative aux services
 		val motsService = Seq("service", "event", "planning", "photo", "repair", "mobile", "electronics", "computer", "clean", "wash", "laundry", "dry", "cleaning", "delivery", "shipping", "transport", "moving", "storage", "logistic")
-		// if(isWordsInStrings(categories, motsService)) {
-		// 	return "service"
-		// }
 		for (categorie <- categories) {
 			if(motsService.exists(mot => categorie.contains(mot))) {
 				return "service"
@@ -217,37 +193,14 @@ object App {
 		val checkinsFile = env("CHECKIN_FILE_PATH")
 
 		// Chargement du fichier JSON
-		val checkins = spark.read.json(checkinsFile).cache()
+		var checkins = spark.read.json(checkinsFile).cache()
+
+		// On conserve que les 20 premières lignes pour tester
+		checkins = checkins.limit(20)
 
 		// affichage du schéma
 		// checkins.printSchema()
 
-		/*
-		 * Le fichier checkin.json contient une colonne "business_id" avec l'id du business
-		 * et une colonne "date" qui contient une liste de dates de visites sous la forme d'un string.
-		 * Nous avons besoin d'extraire ces dates de la string. 
-		 */
-
-		// Extraction des dates, qui formeront une table "date"
-		var visitDates = checkins.withColumn("date", explode(org.apache.spark.sql.functions.split(col("date"), ",")))
-
-		// Formatage des dates pour ne pas avoir plus de précision que le jour (YYYY-MM-DD) tout en gardant le business_id
-		visitDates = visitDates.withColumn("date", regexp_replace(col("date"), "\\d{2}:\\d{2}:\\d{2}", ""))
-
-		// On affiche les 10 premières lignes
-		// visitDates.show(10)
-
-		// On compte le nombre de valeurs (visites) par combinaison business_id - date 
-		val nb_visits_by_date_and_business = visitDates.groupBy("business_id", "date").count()
-												.withColumnRenamed("count", "nb_visits")
-
-		// Et le nombre de visites par business_id
-		val nb_visits_by_business = nb_visits_by_date_and_business.groupBy("business_id").sum("nb_visits")
-												.withColumnRenamed("sum(nb_visits)", "nb_visits")
-
-		// Affichage du top 10
-		// nb_visits_by_date_and_business.orderBy(desc("nb_visits")).show(10)
-		// nb_visits_by_business.orderBy(desc("nb_visits")).show(10)
 
 
 		/*********************************************************
@@ -266,22 +219,32 @@ object App {
 		// affichage du schéma
 		// tips.printSchema()
 
-		// On compte le nombre de tips par business_id
-		val nb_tips_by_business = tips.groupBy("business_id").count().withColumnRenamed("count", "nb_tips")
-
-		// Affichage du top 10
-		// nb_tips_by_business.orderBy(desc("count")).show(10)
-
-		// Nombre total de tips	-> 1 363 162
-		// val nb_tips_total = tips.count()
-		// println(s"Nombre total de tips : $nb_tips_total")
-
-
 
 
 		/***********************************
 			Transformations des données
 		************************************/
+
+		/*
+		 * A partir des checkins
+		 * Le fichier checkin.json contient une colonne "business_id" avec l'id du business
+		 * et une colonne "date" qui contient une liste de dates de visites sous la forme d'un string.
+		 * Nous avons besoin d'extraire ces dates de la string. 
+		 */
+
+		// Extraction des dates de visites
+		var visits = checkins.withColumn("date", explode(org.apache.spark.sql.functions.split(col("date"), ",")))
+
+		// Formatage des dates pour ne pas avoir plus de précision que le jour (YYYY-MM-DD) tout en gardant le business_id
+		visits = visits.withColumn("date", regexp_replace(col("date"), "\\d{2}:\\d{2}:\\d{2}", ""))
+
+		// On extrait les dates de visites uniques pour les stocker dans une table de dimension "date" 
+		val dates_visits = visits.select("date").distinct()
+
+		// On poursuivra la transformation en créant une table de fait "visit" 
+		// qui contiendra le nombre de visites par business_id et par date
+		// après avoir récupéré les dates des review et génére les clés primaires de la table "date"
+
 
 		/*
 		 * A partir des reviews
@@ -290,8 +253,12 @@ object App {
 		*/
 
 		// On crée une table de dimension "date" à partir de la colonne "date" de la table "reviews"
-		// et on ajoute une colonne "date_id" qui sera la clé primaire de la table
-		var dates = reviews.select("date").distinct()
+		val dates_review = reviews.select("date").distinct()
+
+		// On fait l'union des dataframes "dates_visits" et "dates_review" pour avoir une table de dimension "date" complète
+		var dates = dates_visits.union(dates_review).distinct()
+
+		// On ajoute une colonne "date_id" qui sera la clé primaire de la table "date"
 		dates = dates.withColumn("date_id", monotonically_increasing_id())
 
 		// On modifie la colonne "date" de la table "reviews" pour qu'elle contienne la clé primaire de la table "dates"
@@ -312,6 +279,63 @@ object App {
 		// Affichage du top 10
 		// nb_reviews_by_business.orderBy(desc("count")).show(10)
 
+
+		/*
+		 * Retour aux checkins
+		 * On compte le nombre de visites par business_id et par date pour créer la table de fait "visit"
+		 * et on remplace la colonne "date" par une colonne "date_id" qui est une clé étrangère vers la table "date"
+		*/
+
+		// On modifie la colonne "date" de la table "visits" pour qu'elle contienne la clé primaire de la table "dates"
+		visits = visits.join(dates, visits("date") === dates("date"))
+						.drop(visits("date"))
+						.drop(col("date"))
+
+		// On ajoute une colonne "visit_id" qui sera la clé primaire de la table "visits"
+		visits = visits.withColumn("visit_id", monotonically_increasing_id())
+
+		// On compte le nombre de valeurs (visites) par combinaison business_id - date 
+		val nb_visits_by_date_and_business = visits.groupBy("business_id", "date_id").count()
+												.withColumnRenamed("count", "nb_visits")
+
+		// Et le nombre de visites par business_id pour la table de dimension "business"
+		val nb_visits_by_business = nb_visits_by_date_and_business.groupBy("business_id").sum("nb_visits")
+												.withColumnRenamed("sum(nb_visits)", "nb_visits")
+
+
+		// On joint les DataFrames "visits" et "nb_visits_by_date_and_business" pour ajouter la colonne "nb_visits" à la table "visits"
+		// Jointure externe pour ne pas perdre les visites qui n'ont pas de nombre de visites 
+		// (normalement il y en au moins une sinon la valeur n'apparaîtrait pas dans la table "visits")
+		visits = visits.join(
+			nb_visits_by_date_and_business, 
+			visits("business_id") === nb_visits_by_date_and_business("business_id") && 
+			visits("date_id") === nb_visits_by_date_and_business("date_id"),
+			"left_outer"
+		)
+		.drop(nb_visits_by_date_and_business("business_id"))
+		.drop(nb_visits_by_date_and_business("date_id"))
+				
+		// Pour supprimer les lignes sans identifiant - normalement il n'y en a pas
+		visits = visits.filter(col("visit_id").isNotNull)
+						.filter(col("business_id").isNotNull)
+						.filter(col("date_id").isNotNull)
+		
+		// // Affichage des 10 premières lignes
+		// visits.show(10)
+
+		// On libère la mémoire
+		nb_visits_by_date_and_business.unpersist()
+
+
+		/*
+		 * A partir des tips
+		 * On compte simplement le nombre de tips par business_id
+		*/
+
+		val nb_tips_by_business = tips.groupBy("business_id").count().withColumnRenamed("count", "nb_tips")
+
+		// Affichage du top 10
+		// nb_tips_by_business.orderBy(desc("count")).show(10)
 
 
 		/*
