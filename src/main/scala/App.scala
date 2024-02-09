@@ -34,72 +34,72 @@ object App {
 
 		// On cherche si une des catégories est relative à la restauration / vente de nourriture ou de boissons
 		var motsRestauration = Seq("restau", "food", "drink", "bar", "cafe", "coffee", "tea", "breakfast", "brunch", "lunch", "dinner", "bistro", "pub", "brewery", "beer", "wine", "bakery", "cuisine", "caterer")
-		for (categorie <- categories) {
-			if(motsRestauration.exists(mot => categorie.contains(mot))) {
-				return "restauration"
-			}
+		if(isWordsInStrings(categories, motsRestauration)) {
+			return "restaurant"
 		}
 
 		// On cherche si une des catégories est relative à la vente et au commerce
 		val motsCommerce = Seq("shop", "store", "market", "market", "boutique", "commerce", "commercial", "retail", "sale", "buy", "purchase", "sell", "vendor", "dealer", "mall", "grocery", "pharmacy", "drugstore", "bookstore", "library", "florist")
-		for (categorie <- categories) {
-			if(motsCommerce.exists(mot => categorie.contains(mot))) {
-				return "shopping"
-			}
+		if(isWordsInStrings(categories, motsCommerce)) {
+			return "shopping"
+		}
+
+		// On cherche si une des catégories est relative aux animaux
+		val motsAnimaux = Seq("pet", "animal", "veterinar", "zoo", "dog", "cat")
+		if(isWordsInStrings(categories, motsAnimaux)) {
+			return "animal"
 		}
 
 		// On cherche si une des catégories est relative à la santé / médecine
-		val motsSante = Seq("health", "medica", "salon", "clinic", "hospital", "doctor", "dentist", "pharma", "medicin")
-		for (categorie <- categories) {
-			if(motsSante.exists(mot => categorie.contains(mot))) {
-				return "medical"
-			}
+		val motsSante = Seq("health", "medica", "salon", "sante", "clinic", "clinique", "hospital", "doctor", "dentist", "pharma", "medicin")
+		if(isWordsInStrings(categories, motsSante)) {
+			return "medical"
 		}
 		
 
 		// On cherche si une des catégories est relative au soin du corps / beauté
 		val motsSoins = Seq("beauty", "spa", "hair", "nail", "tattoo", "piercing", "wax", "massage", "salon", "life")
-		for (categorie <- categories) {
-			if(motsSoins.exists(mot => categorie.contains(mot))) {
-				return "beauty"
-			}
+		if(isWordsInStrings(categories, motsSoins)) {
+			return "beauty"
 		}
 
 		// On cherche si une des catégories est relative à l'automobile / réparation
 		val motsAutomobile = Seq("auto", "moto", "car", "repair", "garage", "mechanic", "tire", "wheel")
-		for (categorie <- categories) {
-			if(motsAutomobile.exists(mot => categorie.contains(mot))) {
-				return "automobile"
-			}
+		if(isWordsInStrings(categories, motsAutomobile)) {
+			return "automobile"
 		}
 
 		// On cherche si une des catégories est relative aux lieux de culte
 		val motsReligion = Seq("church", "temple", "mosque", "synagogue", "religio", "spiritual", "faith", "worship", "pray")
-		for (categorie <- categories) {
-			if(motsReligion.exists(mot => categorie.contains(mot))) {
-				return "religion"
-			}
+		if(isWordsInStrings(categories, motsReligion)) {
+			return "religion"
 		}
 
 		// On cherche si une des catégories est relative aux loisirs / divertissements
 		val motsLoisirs = Seq("entertainment", "fun", "leisure", "recreation", "game", "play", "sport", "gym", "hobby", "activity", "event", "party", "dance", "music", "concert", "movie", "film", "theater", "cinema", "show", "amusement", "park", "zoo", "museum", "art", "gallery", "exhibit", "exhibition", "tourism", "tourist", "travel", "voyage", "vacation", "holiday", "trip", "visit", "sightseeing", "sightsee", "attraction", "tour", "excursion", "cruise", "cruising", "carnival", "festival")
-		for (categorie <- categories) {
-			if(motsLoisirs.exists(mot => categorie.contains(mot))) {
-				return "entertainment"
-			}
+		if(isWordsInStrings(categories, motsLoisirs)) {
+			return "entertainment"
+		}
+
+		// On cherche si une des catégories est relative à l'enseignement / éducation
+		val motsEcole = Seq("school", "university", "college", "campus", "ecole", "academy", "educat", "stud")
+		if(isWordsInStrings(categories, motsEcole)) {
+			return "ecole"
 		}
 
 		// On cherche si une des catégories est relative aux services
 		val motsService = Seq("service", "event", "planning", "photo", "repair", "mobile", "electronics", "computer", "clean", "wash", "laundry", "dry", "cleaning", "delivery", "shipping", "transport", "moving", "storage", "logistic")
-		for (categorie <- categories) {
-			if(motsService.exists(mot => categorie.contains(mot))) {
-				return "service"
-			}
+		if(isWordsInStrings(categories, motsService)) {
+			return "service"
 		}
 
 
 		// Si on ne trouve pas de catégorie parmi celles prédéfinies, on retourne la première
-		return categories(0)
+		// return categories(0)
+
+		// Si on ne trouve pas de catégorie parmi celles prédéfinies, on retourne la chaîne "other"
+		// Cela permettra de récupérer les business qui n'ont pas de catégorie principale
+		return "other"
 	}
 
 	def main(args: Array[String]) {
@@ -154,9 +154,9 @@ object App {
 
 		val queryGetReviews =
 		"""
-			|SELECT review_id, user_id, business_id, stars, date
-			|FROM yelp.review
-			|WHERE business_id is not null
+			|SELECT	review_id, user_id, business_id, stars, date
+			|FROM 	yelp.review
+			|WHERE 	business_id is not null
 		""".stripMargin
 
 		var reviews = spark.read.jdbc(urlPostgres, s"($queryGetReviews) as review", connectionPropertiesPostgres)
@@ -164,8 +164,21 @@ object App {
 		// affichage du schéma
 		// reviews.printSchema()
 
-		// Les données de la table "user" sont récupérées dans la partie "Ajout de données au data warehouse - base de données Oracle"
-		// car on n'effectue pas de transformation dessus
+		
+		// Recupération des données de la table "user"
+		// On ne garde que les utilisateurs qui ont laissé au moins une review
+
+		val queryGetUsers =
+		"""
+			|SELECT	DISTINCT u.user_id, review_count, yelping_since
+			|FROM	yelp.user as u INNER JOIN yelp.review as r
+			|ON		r.user_id = u.user_id
+		""".stripMargin
+
+		var users = spark.read.jdbc(urlPostgres, s"($queryGetUsers) as users", connectionPropertiesPostgres)
+
+		// affichage du schéma
+		// users.printSchema()
 
 
 		/**************************************************************
@@ -177,9 +190,6 @@ object App {
 
 		// Chargement du fichier JSON
 		var business = spark.read.json(businessFile).cache()
-
-		// On conserve que les 20 premières lignes pour tester
-		// business = business.limit(20)
 
 		// affichage du schéma
 		// business.printSchema()
@@ -194,9 +204,6 @@ object App {
 
 		// Chargement du fichier JSON
 		var checkins = spark.read.json(checkinsFile).cache()
-
-		// On conserve que les 20 premières lignes pour tester
-		checkins = checkins.limit(20)
 
 		// affichage du schéma
 		// checkins.printSchema()
@@ -238,6 +245,9 @@ object App {
 		// Formatage des dates pour ne pas avoir plus de précision que le jour (YYYY-MM-DD) tout en gardant le business_id
 		visits = visits.withColumn("date", regexp_replace(col("date"), "\\d{2}:\\d{2}:\\d{2}", ""))
 
+		// Supression des espaces si il y en a
+		visits = visits.withColumn("date", regexp_replace(col("date"), " ", ""))
+
 		// On extrait les dates de visites uniques pour les stocker dans une table de dimension "date" 
 		val dates_visits = visits.select("date").distinct()
 
@@ -273,8 +283,8 @@ object App {
 						.filter(col("date_id").isNotNull)
 
 		// On compte le nombre de review par business_id
-		// Normalement c'est ce qui est contenu dans l'attribut "review_count" de la table "business"
-		val nb_reviews_by_business = reviews.groupBy("business_id").count().withColumnRenamed("count", "nb_reviews")
+		// Pas utile car c'est ce qui est contenu dans l'attribut "review_count" de la table "business"
+		// val nb_reviews_by_business = reviews.groupBy("business_id").count().withColumnRenamed("count", "nb_reviews")
 
 		// Affichage du top 10
 		// nb_reviews_by_business.orderBy(desc("count")).show(10)
@@ -291,16 +301,22 @@ object App {
 						.drop(visits("date"))
 						.drop(col("date"))
 
-		// On ajoute une colonne "visit_id" qui sera la clé primaire de la table "visits"
-		visits = visits.withColumn("visit_id", monotonically_increasing_id())
-
 		// On compte le nombre de valeurs (visites) par combinaison business_id - date 
-		val nb_visits_by_date_and_business = visits.groupBy("business_id", "date_id").count()
-												.withColumnRenamed("count", "nb_visits")
+		val nb_visits_by_date_and_business = visits.groupBy("business_id", "date_id")
+													.count()
+													.withColumnRenamed("count", "nb_visits")
 
 		// Et le nombre de visites par business_id pour la table de dimension "business"
-		val nb_visits_by_business = nb_visits_by_date_and_business.groupBy("business_id").sum("nb_visits")
-												.withColumnRenamed("sum(nb_visits)", "nb_visits")
+		val nb_visits_by_business = nb_visits_by_date_and_business.groupBy("business_id")
+																	.sum("nb_visits")
+																	.withColumnRenamed("sum(nb_visits)", "nb_visits")
+
+		// Suppression des doublons
+		visits = visits.distinct()
+
+
+		// On ajoute une colonne "visit_id" qui sera la clé primaire de la table "visits"
+		visits = visits.withColumn("visit_id", monotonically_increasing_id())
 
 
 		// On joint les DataFrames "visits" et "nb_visits_by_date_and_business" pour ajouter la colonne "nb_visits" à la table "visits"
@@ -345,6 +361,66 @@ object App {
 		 * et de la colonne "attributes" qui contient un objet JSON avec des attributs et leurs valeurs
 		*/
 
+
+		// Pour supprimer les enregistrements sans valeur dans la colonne "name"
+		// Il y en a qu'un seul dans le fichier business.json
+		// On peut quand même le garder car utiliser son type de commerce peut servir
+		// business = business.filter(col("name").isNotNull)
+
+
+		// Certains business n'ont pas certaines informations de localisation
+		// 8679 business n'ont pas d'adresse, 2 n'ont pas de ville, 509 n'ont pas de code postaux
+		// Est-ce qu'on essaye de retrouver ces informations à partir de la latitude et de la longitude ?
+		// C'est a priori faisable à partir de l'API de Google Maps en faisant un géocodage inversé, mais
+		// c'est coûteux en temps, le nombre de requêtes est limité pour une version gratuite
+		// On peut se contenter des villes pour les requêtes d'analyse
+
+
+		// Gestion des doublons
+		// Certains commerce ont le même nom et la même adresse, ou encore le même nom, la même latitude et la même longitude
+		// Pour autant leur identifiant est différent et ils n'ont pas forcément le même nombre de reviews, la même note moyenne, etc.
+		// Alors que faire ? 
+		// On peut les fusionner en un seul commerce, mais quels critères prendre en compte pour choisir les valeurs à conserver ?
+		// moyenne ? valeur la plus fréquente ? 
+		// Pour ce qui est des catégories, on peut les fusionner en une seule chaîne de caractères séparée par des virgules
+		// On décide donc regrouper les doublons de {nom, adresse} et de {nom, latitude, longitude} en une seule ligne
+		// en prenant la moyenne pour les attributs 'stars' et 'review_count', et en concaténant les catégories
+
+		// Doublons sur le nom et l'adresse si elle est renseignée
+		business = business.where("address is not null")
+							.groupBy("name", "address")
+							.agg(	
+									first("business_id") as "business_id", 
+									first("city") as "city",
+									first("state") as "state",
+									first("postal_code") as "postal_code",
+									first("latitude") as "latitude",
+									first("longitude") as "longitude",
+									avg("stars") as "stars",
+									avg("review_count") as "review_count",
+									first("is_open") as "is_open",
+									first("attributes") as "attributes",
+									concat_ws(",", collect_list("categories")) as "categories", 	// on concatène les catégories en une seule chaîne de caractères
+									first("hours") as "hours"
+								)
+
+		// Doublons sur le nom, la latitude et la longitude
+		business = business.groupBy("name", "latitude", "longitude")
+							.agg(	
+									first("business_id") as "business_id", 
+									first("address") as "address",
+									first("city") as "city",
+									first("state") as "state",
+									first("postal_code") as "postal_code",
+									avg("stars") as "stars",
+									avg("review_count") as "review_count",
+									first("is_open") as "is_open",
+									first("attributes") as "attributes",
+									concat_ws(",", collect_list("categories")) as "categories", 	// on concatène les catégories en une seule chaîne de caractères
+									first("hours") as "hours"
+								)
+
+
 		// Extraction de l'information de l'ouverture du business par jour
 		// La colonne "hours" contient un objet JSON avec les jours de la semaine et les horaires d'ouverture
 		var openDays = business.select("business_id", "hours")
@@ -368,6 +444,16 @@ object App {
 		var business_main_categorie = business_categories.withColumn("main_categorie", getMainCategorieUDF(col("categories")))
 											.drop(col("categories"))
 
+
+		/*
+		 * Pour la vérification des catégories principales
+		 * écriture dans un fichier json
+		*/
+		// business_main_categorie.select("categories", "main_categorie")
+		// 						.write.mode(SaveMode.Overwrite)
+		// 						.json("categories.json")
+		
+
 		// Suppression des colonnes inutiles dans le dataframe "business"
 		business = business.drop(col("categories"))
 							.drop(col("attributes"))
@@ -389,6 +475,9 @@ object App {
 		business = business.join(nb_visits_by_business, business("business_id") === nb_visits_by_business("business_id"), "left_outer")
 							.drop(nb_visits_by_business("business_id"))
 
+		// On remplace les valeurs nulles par 0
+		business = business.na.fill(0, Seq("nb_visits"))
+
 		// On libère la mémoire
 		nb_visits_by_business.unpersist()
 
@@ -407,13 +496,16 @@ object App {
 
 		// On joint les DataFrames "business" et "nb_reviews_by_business" pour ajouter la colonne "nb_reviews" à "business"
 		// Jointure externe pour ne pas perdre les business qui n'ont pas d'information sur les jours d'ouverture
-		business = business.join(nb_reviews_by_business, business("business_id") === nb_reviews_by_business("business_id"), "left_outer")
-							.drop(nb_reviews_by_business("business_id"))
+		// business = business.join(nb_reviews_by_business, business("business_id") === nb_reviews_by_business("business_id"), "left_outer")
+		// 					.drop(nb_reviews_by_business("business_id"))
 
 		// On joint les DataFrames "business" et "nb_tips_by_business" pour ajouter la colonne "nb_tips" à "business"
-		// Jointure externe pour ne pas perdre les business qui n'ont pas d'information sur les jours d'ouverture
+		// Jointure externe pour ne pas perdre les business qui n'ont pas d'information sur le nombre de tips
 		business = business.join(nb_tips_by_business, business("business_id") === nb_tips_by_business("business_id"), "left_outer")
 							.drop(nb_tips_by_business("business_id"))
+
+		// On remplace les valeurs nulles par 0
+		business = business.na.fill(0, Seq("nb_tips"))
 
 
 		// Affichage du schéma
@@ -423,7 +515,7 @@ object App {
 		// business.show(20)
 
 		// On libère la mémoire
-		nb_reviews_by_business.unpersist()
+		// nb_reviews_by_business.unpersist()
 		nb_tips_by_business.unpersist()
 
 
@@ -440,7 +532,6 @@ object App {
 
 		// Affichage des 10 premières lignes
 		// dates.show(10)
-
 
 
 		/******************************************************************
@@ -464,31 +555,13 @@ object App {
 		// Libération de la mémoire
 		// visits.unpersist()
 
-
 		// Réorganisation des colonnes du DataFrame business
-		// business = business.select("business_id", "name", "main_categorie", "address", "postal_code", "city", "state", "latitude", "longitude", "avg_stars", "review_count", "is_open", "nb_visits", "nb_reviews", "nb_tips", "is_open_monday", "is_open_tuesday", "is_open_wednesday", "is_open_thursday", "is_open_friday", "is_open_saturday", "is_open_sunday")
+		// business = business.select("business_id", "name", "main_categorie", "address", "postal_code", "city", "state", "latitude", "longitude", "avg_stars", "review_count", "is_open", "nb_visits", "nb_tips", "is_open_monday", "is_open_tuesday", "is_open_wednesday", "is_open_thursday", "is_open_friday", "is_open_saturday", "is_open_sunday")
 		// Enregistrement du DataFrame business dans la table "business"
 		// business.write.mode(SaveMode.Overwrite).jdbc(urlOracle, "business", connectionPropertiesOracle)
 		// Libération de la mémoire
 		// business.unpersist()
 
-
-		// Recupération des données de la table "user" depuis la base de données Postgres
-		// et enregistrement dans la table "users" de la base de données Oracle
-		val queryGetUsers =
-		"""
-			|SELECT user_id, review_count, yelping_since
-			|FROM yelp."user"
-			|WHERE user_id is not null
-		""".stripMargin
-
-		// val users = spark.read.jdbc(urlPostgres, s"($queryGetUsers) as review", connectionPropertiesPostgres)
-
-		// affichage du schéma
-		// users.printSchema()
-
-		// recuperation de données
-		// users.limit(10).show()
 
 		// Enregistrement du DataFrame user dans la table "consumer" (user est un mot réservé en Oracle)
 		// users.write.mode(SaveMode.Overwrite).jdbc(urlOracle, "consumer", connectionPropertiesOracle)
@@ -506,7 +579,6 @@ object App {
 
 		// Arrêt de la session Spark
 		spark.stop()
-
 
 	}
 }
