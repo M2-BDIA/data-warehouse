@@ -1,10 +1,32 @@
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{SaveMode, SparkSession}
 import org.apache.spark.sql.functions._
+import org.apache.spark.sql.jdbc.{JdbcDialect, JdbcDialects, JdbcType}
 
 import java.util.Properties
 
 object App {
+
+	// Implémentation de la classe JdbcDialect pour le dialecte Oracle
+	// Pour réfinir le mapping entre les types de données Spark et les types de données Oracle
+	class OracleDialect extends JdbcDialect {
+		override def getJDBCType(dt: DataType): Option[JdbcType] = dt match {
+			case DoubleType => Some(JdbcType("NUMBER(20,10)", java.sql.Types.NUMERIC))
+			// NUMBER(20,10) -> 20 chiffres au total, 10 chiffres après la virgule
+			// besoin d'autant de chiffres avant la virgule pour stocker des valeurs de latitude et longitude
+			case BooleanType => Some(JdbcType("NUMBER(1)", java.sql.Types.NUMERIC))
+			case IntegerType => Some(JdbcType("NUMBER(10)", java.sql.Types.INTEGER))
+			case LongType => Some(JdbcType("NUMBER(19)", java.sql.Types.BIGINT))
+			case FloatType => Some(JdbcType("NUMBER(19, 4)", java.sql.Types.FLOAT))
+			case ByteType => Some(JdbcType("NUMBER(3)", java.sql.Types.SMALLINT))
+			case ShortType => Some(JdbcType("NUMBER(5)", java.sql.Types.SMALLINT))
+			case StringType => Some(JdbcType("VARCHAR2(255)", java.sql.Types.VARCHAR))
+			case DateType => Some(JdbcType("DATE", java.sql.Types.DATE))
+			case _ => None
+		}
+		override def canHandle(url: String): Boolean = url.startsWith("jdbc:oracle")
+		override def quoteIdentifier(colName: String): String = s""""$colName""""
+	}
 
 	// Fonction qui prend en entrée une liste de strings et une liste de mots
 	// et retourne true si au moins un des mots est présent dans au moins une des chaînes de caractères
@@ -17,9 +39,9 @@ object App {
 		return false
 	}
 
-	// Fonction qui prend en entrée un string contenant des valeurs séparées par une virgule
-	// et retourne une des valeurs sous forme de string
-	def getMainCategorie(str_categories: String): String = {
+	// Fonction qui effectue une recherche de sous-chaînes de caractères parmis celles données en entrée. 
+	// En entrée : un string contenant des valeurs separees par une virgule et retourne une valeur sous forme de string
+	def getMainCategory(str_categories: String): String = {
 		// Récupération des catégories dans un tableau en supprimant les majuscules
 		var categories = str_categories.toLowerCase().split(",")
 
@@ -32,10 +54,39 @@ object App {
 		// Il faut que les catégories soient dans l'ordre de priorité...
 		// Les mots peuvent être présents avec des suffixes ou des préfixes
 
+		// On cherche si une des catégories contient le mot "service"
+		var motsService = Seq("service")
+		if(isWordsInStrings(categories, motsService)) {
+			return "service"
+		}
+
+		// On cherche si une des catégories contient le mot "pet"
+		var motsAnimaux = Seq("pet")
+		if(isWordsInStrings(categories, motsAnimaux)) {
+			return "animal"
+		}	
+
+		var motsAutomobile = Seq("automotive")
+		if(isWordsInStrings(categories, motsAutomobile)) {
+			return "automotive"
+		}
+
 		// On cherche si une des catégories est relative à la restauration / vente de nourriture ou de boissons
-		var motsRestauration = Seq("restau", "food", "drink", "bar", "cafe", "coffee", "tea", "breakfast", "brunch", "lunch", "dinner", "bistro", "pub", "brewery", "beer", "wine", "bakery", "cuisine", "caterer")
+		var motsRestauration = Seq("restau", "food", "drink", "cafe", "coffee", "tea", "breakfast", "brunch", "lunch", "dinner", "bistro", "pub", "brewery", "beer", "wine", "bakery", "cuisine", "caterer")
 		if(isWordsInStrings(categories, motsRestauration)) {
 			return "restaurant"
+		}
+
+		// On cherche si une des catégories est relative à la santé / médecine
+		val motsSante = Seq("health", "medica", "sante", "clinic", "clinique", "hospital", "doctor", "dentist", "pharma", "medicin")
+		if(isWordsInStrings(categories, motsSante)) {
+			return "medical"
+		}
+
+		// On cherche si une des catégories est relative à l'enseignement / éducation
+		val motsEcole = Seq("school", "university", "college", "campus", "ecole", "academy", "educat", "stud")
+		if(isWordsInStrings(categories, motsEcole)) {
+			return "education"
 		}
 
 		// On cherche si une des catégories est relative à la vente et au commerce
@@ -44,63 +95,53 @@ object App {
 			return "shopping"
 		}
 
-		// On cherche si une des catégories est relative aux animaux
-		val motsAnimaux = Seq("pet", "animal", "veterinar", "zoo", "dog", "cat")
-		if(isWordsInStrings(categories, motsAnimaux)) {
-			return "animal"
-		}
-
-		// On cherche si une des catégories est relative à la santé / médecine
-		val motsSante = Seq("health", "medica", "salon", "sante", "clinic", "clinique", "hospital", "doctor", "dentist", "pharma", "medicin")
-		if(isWordsInStrings(categories, motsSante)) {
-			return "medical"
-		}
-		
-
-		// On cherche si une des catégories est relative au soin du corps / beauté
-		val motsSoins = Seq("beauty", "spa", "hair", "nail", "tattoo", "piercing", "wax", "massage", "salon", "life")
-		if(isWordsInStrings(categories, motsSoins)) {
-			return "beauty"
-		}
-
-		// On cherche si une des catégories est relative à l'automobile / réparation
-		val motsAutomobile = Seq("auto", "moto", "car", "repair", "garage", "mechanic", "tire", "wheel")
-		if(isWordsInStrings(categories, motsAutomobile)) {
-			return "automobile"
-		}
-
 		// On cherche si une des catégories est relative aux lieux de culte
-		val motsReligion = Seq("church", "temple", "mosque", "synagogue", "religio", "spiritual", "faith", "worship", "pray")
+		val motsReligion = Seq("church", "temple", "mosque", "synagogue", "religio", "spiritual", "faith", "worship")
 		if(isWordsInStrings(categories, motsReligion)) {
 			return "religion"
 		}
 
 		// On cherche si une des catégories est relative aux loisirs / divertissements
-		val motsLoisirs = Seq("entertainment", "fun", "leisure", "recreation", "game", "play", "sport", "gym", "hobby", "activity", "event", "party", "dance", "music", "concert", "movie", "film", "theater", "cinema", "show", "amusement", "park", "zoo", "museum", "art", "gallery", "exhibit", "exhibition", "tourism", "tourist", "travel", "voyage", "vacation", "holiday", "trip", "visit", "sightseeing", "sightsee", "attraction", "tour", "excursion", "cruise", "cruising", "carnival", "festival")
+		var motsLoisirs = Seq("entertainment", "karaoke", "fun", "leisure", "recreation", "game", "hotel", "event", "play", "sport", "fitness", "gym", "hobby", "activity", "event", "party", "dance", "music", "concert", "movie", "film", "theater", "cinema", "show", "amusement", "park", "zoo", "museum", "art", "gallery", "exhibit", "exhibition", "tourism", "tourist", "travel", "voyage", "vacation", "holiday", "trip", "visit", "sightseeing", "sightsee", "attraction", "tour", "excursion", "cruise", "cruising", "carnival", "festival")
 		if(isWordsInStrings(categories, motsLoisirs)) {
 			return "entertainment"
 		}
 
-		// On cherche si une des catégories est relative à l'enseignement / éducation
-		val motsEcole = Seq("school", "university", "college", "campus", "ecole", "academy", "educat", "stud")
-		if(isWordsInStrings(categories, motsEcole)) {
-			return "ecole"
+		// On cherche si une des catégories est relative au soin du corps / beauté
+		val motsSoins = Seq("beauty", "spa", "hair", "barber", "nail", "tattoo", "piercing", "wax", "massage")
+		if(isWordsInStrings(categories, motsSoins)) {
+			return "beauty"
 		}
 
-		// On cherche si une des catégories est relative aux services
-		val motsService = Seq("service", "event", "planning", "photo", "repair", "mobile", "electronics", "computer", "clean", "wash", "laundry", "dry", "cleaning", "delivery", "shipping", "transport", "moving", "storage", "logistic")
+		// On cherche si une des catégories est relative à l'automobile
+		motsAutomobile = Seq("auto", "moto", "car", "garage", "mechanic", "tire", "wheel")
+		if(isWordsInStrings(categories, motsAutomobile)) {
+			return "automotive"
+		}
+
+		// On cherche si une des catégories est relative aux services (sans dire expréssement "service")
+		motsService = Seq("event", "planning", "photo", "repair", "mobile", "electronics", "computer", "clean", "wash", "laundry", "dry", "cleaning", "delivery", "shipping", "transport", "moving", "storage", "logistic")
 		if(isWordsInStrings(categories, motsService)) {
 			return "service"
 		}
 
+		// On cherche si une des catégories est relative aux animaux
+		motsAnimaux = Seq("pet", "animal", "veterinar", "zoo", "dog", "cat")
+		if(isWordsInStrings(categories, motsAnimaux)) {
+			return "animal"
+		}	
 
-		// Si on ne trouve pas de catégorie parmi celles prédéfinies, on retourne la première
-		// return categories(0)
+		// On cherche si une des catégories contient le mot "life"
+		motsLoisirs = Seq("life")
+		if(isWordsInStrings(categories, motsLoisirs)) {
+			return "entertainment"
+		}	
 
 		// Si on ne trouve pas de catégorie parmi celles prédéfinies, on retourne la chaîne "other"
-		// Cela permettra de récupérer les business qui n'ont pas de catégorie principale
+		// Cela permettra de récupérer facilement les business qui n'ont pas de catégorie principale
 		return "other"
 	}
+
 
 	def main(args: Array[String]) {
 
@@ -108,8 +149,13 @@ object App {
 			Paramètres du programme et initialisation
 		************************************************/
 
-		// Création de la fonction UDF qui permettra d'extraire la catégorie principale d'un business
-		val getMainCategorieUDF = udf(getMainCategorie _)
+		// Définition du dialecte Oracle
+		// utilisé par la suite pour écrire les données dans la base de données Oracle
+		// uniquement pour la table de dimension "business"
+		val dialect = new OracleDialect
+
+		// Création de la fonction UDF (User-Defined Function) qui permettra d'extraire la catégorie principale d'un business
+		val getMainCategoryUDF = udf(getMainCategory _)
 
 		// Chargement des variables d'environnement depuis le fichier .env
 		val env = scala.collection.mutable.Map[String, String]()
@@ -159,7 +205,9 @@ object App {
 			|WHERE 	business_id is not null
 		""".stripMargin
 
-		var reviews = spark.read.jdbc(urlPostgres, s"($queryGetReviews) as review", connectionPropertiesPostgres)
+		var reviews = spark.read
+			// .option("numPartitions", 50)
+			.jdbc(urlPostgres, s"($queryGetReviews) as review", connectionPropertiesPostgres)
 
 		// affichage du schéma
 		// reviews.printSchema()
@@ -175,7 +223,9 @@ object App {
 			|ON		r.user_id = u.user_id
 		""".stripMargin
 
-		var users = spark.read.jdbc(urlPostgres, s"($queryGetUsers) as users", connectionPropertiesPostgres)
+		var users = spark.read
+			// .option("numPartitions", 50)
+			.jdbc(urlPostgres, s"($queryGetUsers) as users", connectionPropertiesPostgres)
 
 		// affichage du schéma
 		// users.printSchema()
@@ -282,13 +332,6 @@ object App {
 						.filter(col("business_id").isNotNull)
 						.filter(col("date_id").isNotNull)
 
-		// On compte le nombre de review par business_id
-		// Pas utile car c'est ce qui est contenu dans l'attribut "review_count" de la table "business"
-		// val nb_reviews_by_business = reviews.groupBy("business_id").count().withColumnRenamed("count", "nb_reviews")
-
-		// Affichage du top 10
-		// nb_reviews_by_business.orderBy(desc("count")).show(10)
-
 
 		/*
 		 * Retour aux checkins
@@ -314,8 +357,8 @@ object App {
 		// Suppression des doublons
 		visits = visits.distinct()
 
-
 		// On ajoute une colonne "visit_id" qui sera la clé primaire de la table "visits"
+		// Cet identifiant technique est facultatif, la clé primaire peut être union des clés étrangères des tables de dimension
 		visits = visits.withColumn("visit_id", monotonically_increasing_id())
 
 
@@ -361,6 +404,12 @@ object App {
 		 * et de la colonne "attributes" qui contient un objet JSON avec des attributs et leurs valeurs
 		*/
 
+		// Suppression de la casse de la colonne "city"
+		business = business.withColumn("city", lower(col("city")))
+
+		// Suppression des espaces dans la colonne "city"
+		business = business.withColumn("city", regexp_replace(col("city"), " ", ""))
+
 
 		// Pour supprimer les enregistrements sans valeur dans la colonne "name"
 		// Il y en a qu'un seul dans le fichier business.json
@@ -381,44 +430,50 @@ object App {
 		// Pour autant leur identifiant est différent et ils n'ont pas forcément le même nombre de reviews, la même note moyenne, etc.
 		// Alors que faire ? 
 		// On peut les fusionner en un seul commerce, mais quels critères prendre en compte pour choisir les valeurs à conserver ?
-		// moyenne ? valeur la plus fréquente ? 
+		// moyenne ? valeur la plus fréquente ? les valeurs du tuple dont le nombre d'avis est le plus élevé ?
 		// Pour ce qui est des catégories, on peut les fusionner en une seule chaîne de caractères séparée par des virgules
-		// On décide donc regrouper les doublons de {nom, adresse} et de {nom, latitude, longitude} en une seule ligne
-		// en prenant la moyenne pour les attributs 'stars' et 'review_count', et en concaténant les catégories
+		// On peut aussi les supprimer, mais on perd de l'information
+
+		// Avec la fusion des commerces un problème survient : si un avis est émis ou une visite est effectuée sur un commerce que l'on a fusionné 
+		// avec un autre car étant un doublon, il faut réaffecter l'identifiant du commerce que l'on conserve... pas simple !
+
+		// Au final on décide de ne pas fusionner les commerces, on les laisse tels quels
+		// Ce serait trop couûteux en temps et en ressources pour un résultat satisfaisant
+		// D'autant que le nombre de doublons est très faible par rapport au nombre total de commerces (0.1% environ)
 
 		// Doublons sur le nom et l'adresse si elle est renseignée
-		business = business.where("address is not null")
-							.groupBy("name", "address")
-							.agg(	
-									first("business_id") as "business_id", 
-									first("city") as "city",
-									first("state") as "state",
-									first("postal_code") as "postal_code",
-									first("latitude") as "latitude",
-									first("longitude") as "longitude",
-									avg("stars") as "stars",
-									avg("review_count") as "review_count",
-									first("is_open") as "is_open",
-									first("attributes") as "attributes",
-									concat_ws(",", collect_list("categories")) as "categories", 	// on concatène les catégories en une seule chaîne de caractères
-									first("hours") as "hours"
-								)
+		// business = business.where("address is not null")
+		// 					.groupBy("name", "address")
+		// 					.agg(	
+		// 							first("business_id") as "business_id", 
+		// 							first("city") as "city",
+		// 							first("state") as "state",
+		// 							first("postal_code") as "postal_code",
+		// 							first("latitude") as "latitude",
+		// 							first("longitude") as "longitude",
+		// 							avg("stars") as "stars",
+		// 							avg("review_count") as "review_count",
+		// 							first("is_open") as "is_open",
+		// 							first("attributes") as "attributes",
+		// 							concat_ws(",", collect_list("categories")) as "categories", 	// on concatène les catégories en une seule chaîne de caractères
+		// 							first("hours") as "hours"
+		// 						)
 
 		// Doublons sur le nom, la latitude et la longitude
-		business = business.groupBy("name", "latitude", "longitude")
-							.agg(	
-									first("business_id") as "business_id", 
-									first("address") as "address",
-									first("city") as "city",
-									first("state") as "state",
-									first("postal_code") as "postal_code",
-									avg("stars") as "stars",
-									avg("review_count") as "review_count",
-									first("is_open") as "is_open",
-									first("attributes") as "attributes",
-									concat_ws(",", collect_list("categories")) as "categories", 	// on concatène les catégories en une seule chaîne de caractères
-									first("hours") as "hours"
-								)
+		// business = business.groupBy("name", "latitude", "longitude")
+		// 					.agg(	
+		// 							first("business_id") as "business_id", 
+		// 							first("address") as "address",
+		// 							first("city") as "city",
+		// 							first("state") as "state",
+		// 							first("postal_code") as "postal_code",
+		// 							avg("stars") as "stars",
+		// 							avg("review_count") as "review_count",
+		// 							first("is_open") as "is_open",
+		// 							first("attributes") as "attributes",
+		// 							concat_ws(",", collect_list("categories")) as "categories", 	// on concatène les catégories en une seule chaîne de caractères
+		// 							first("hours") as "hours"
+		// 						)
 
 
 		// Extraction de l'information de l'ouverture du business par jour
@@ -441,15 +496,11 @@ object App {
 		business_categories = business_categories.filter(col("categories").isNotNull)
 		
 		// On crée une colonne "main_categorie" qui contient la catégorie principale du business
-		var business_main_categorie = business_categories.withColumn("main_categorie", getMainCategorieUDF(col("categories")))
-											.drop(col("categories"))
+		var business_main_category = business_categories.withColumn("main_category", getMainCategoryUDF(col("categories")))
 
 
-		/*
-		 * Pour la vérification des catégories principales
-		 * écriture dans un fichier json
-		*/
-		// business_main_categorie.select("categories", "main_categorie")
+		// Pour la vérification des catégories principales -> écriture dans des fichiers json
+		// business_main_category.select("categories", "main_category")
 		// 						.write.mode(SaveMode.Overwrite)
 		// 						.json("categories.json")
 		
@@ -460,14 +511,25 @@ object App {
 							.drop(col("hours"))
 
 				
-		// On joint les DataFrames "business" et "business_main_categorie" pour ajouter la colonne "main_categorie" à "business"
+		// On joint les DataFrames "business" et "business_main_category" pour ajouter la colonne "main_category" à "business"
 		// Jointure externe pour ne pas perdre les business qui n'ont pas de catégorie principale
-		business = business.join(business_main_categorie, business("business_id") === business_main_categorie("business_id"), "left_outer")
-							.drop(business_main_categorie("business_id"))
+		business_main_category = business_main_category.withColumnRenamed("business_id", "business_id_2")	// pour éviter les conflits
+		business = business.join(business_main_category, business("business_id") === business_main_category("business_id_2"), "left_outer")
+							.drop(business_main_category("business_id_2"))
 
+		// Autre façon de faire la jointure, avec une requête SQL
+		// business.registerTempTable("business")
+		// business_main_category.registerTempTable("business_main_category")
+		// business = spark.sql(
+		// 	"""
+		// 		SELECT	b.*, bmc.main_category
+		// 		FROM	business b LEFT OUTER JOIN business_main_category bmc
+		// 		ON		b.business_id = bmc.business_id
+		// 	""")
+			
 		// On libère la mémoire
 		business_categories.unpersist()
-		business_main_categorie.unpersist()
+		business_main_category.unpersist()
 
 
 		// On joint les DataFrames "business" et "nb_visits_by_business" pour ajouter la colonne "nb_visites" à "business"
@@ -493,12 +555,6 @@ object App {
 		// On libère la mémoire
 		openDays.unpersist()
 
-
-		// On joint les DataFrames "business" et "nb_reviews_by_business" pour ajouter la colonne "nb_reviews" à "business"
-		// Jointure externe pour ne pas perdre les business qui n'ont pas d'information sur les jours d'ouverture
-		// business = business.join(nb_reviews_by_business, business("business_id") === nb_reviews_by_business("business_id"), "left_outer")
-		// 					.drop(nb_reviews_by_business("business_id"))
-
 		// On joint les DataFrames "business" et "nb_tips_by_business" pour ajouter la colonne "nb_tips" à "business"
 		// Jointure externe pour ne pas perdre les business qui n'ont pas d'information sur le nombre de tips
 		business = business.join(nb_tips_by_business, business("business_id") === nb_tips_by_business("business_id"), "left_outer")
@@ -510,9 +566,6 @@ object App {
 
 		// Affichage du schéma
 		// business.printSchema()
-
-		// Pour tester :
-		// business.show(20)
 
 		// On libère la mémoire
 		// nb_reviews_by_business.unpersist()
@@ -541,32 +594,42 @@ object App {
 		// Enregistrement du DataFrame date dans la table "date_detail" car "date" est un mot réservé en Oracle
 		// dates.write.mode(SaveMode.Overwrite).jdbc(urlOracle, "date_detail", connectionPropertiesOracle)
 		// Libération de la mémoire
-		// dates.unpersist()
+		dates.unpersist()
 
 
 		// Enregistrement du DataFrame reviews dans la table "review"
 		// reviews.write.mode(SaveMode.Overwrite).jdbc(urlOracle, "review", connectionPropertiesOracle)
 		// Libération de la mémoire
-		// reviews.unpersist()
+		reviews.unpersist()
 
 
 		// Enregistrement du DataFrame visits dans la table "visit"
 		// visits.write.mode(SaveMode.Overwrite).jdbc(urlOracle, "visit", connectionPropertiesOracle)
 		// Libération de la mémoire
-		// visits.unpersist()
+		visits.unpersist()
+
+
+		// Enregistrement du dialecte Oracle
+		JdbcDialects.registerDialect(dialect)
 
 		// Réorganisation des colonnes du DataFrame business
-		// business = business.select("business_id", "name", "main_categorie", "address", "postal_code", "city", "state", "latitude", "longitude", "avg_stars", "review_count", "is_open", "nb_visits", "nb_tips", "is_open_monday", "is_open_tuesday", "is_open_wednesday", "is_open_thursday", "is_open_friday", "is_open_saturday", "is_open_sunday")
+		business = business.select("business_id", "name", "main_category", "address", "postal_code", "city", "state", "latitude", "longitude", "avg_stars", "review_count", "is_open", "nb_visits", "nb_tips", "is_open_monday", "is_open_tuesday", "is_open_wednesday", "is_open_thursday", "is_open_friday", "is_open_saturday", "is_open_sunday")
 		// Enregistrement du DataFrame business dans la table "business"
 		// business.write.mode(SaveMode.Overwrite).jdbc(urlOracle, "business", connectionPropertiesOracle)
 		// Libération de la mémoire
-		// business.unpersist()
+		business.unpersist()
+
+		// Désenregistrement du dialecte Oracle
+		JdbcDialects.unregisterDialect(dialect)
 
 
 		// Enregistrement du DataFrame user dans la table "consumer" (user est un mot réservé en Oracle)
-		// users.write.mode(SaveMode.Overwrite).jdbc(urlOracle, "consumer", connectionPropertiesOracle)
+		// users.write
+		// 	.mode(SaveMode.Overwrite)
+		// 	.format("jdbc") // dialect par défaut
+		// 	.jdbc(urlOracle, "consumer", connectionPropertiesOracle)
 		// Libération de la mémoire
-		// users.unpersist()
+		users.unpersist()
 
 
 
@@ -581,4 +644,5 @@ object App {
 		spark.stop()
 
 	}
+
 }
