@@ -200,7 +200,7 @@ order by "postal_code"
 
 ### Les 10 restaurants les mieux notés de Cleveland
 ```sql
-select "business_id", "name", "review_count", "avg_stars", "latitude", "longitude"
+select "name", "review_count", "avg_stars", "latitude", "longitude"
 from business
 where "city" = 'cleveland'
 and "main_category" = 'restaurant'

@@ -592,19 +592,19 @@ object App {
 		*******************************************************************/
 
 		// Enregistrement du DataFrame date dans la table "date_detail" car "date" est un mot réservé en Oracle
-		// dates.write.mode(SaveMode.Overwrite).jdbc(urlOracle, "date_detail", connectionPropertiesOracle)
+		dates.write.mode(SaveMode.Overwrite).jdbc(urlOracle, "date_detail", connectionPropertiesOracle)
 		// Libération de la mémoire
 		dates.unpersist()
 
 
 		// Enregistrement du DataFrame reviews dans la table "review"
-		// reviews.write.mode(SaveMode.Overwrite).jdbc(urlOracle, "review", connectionPropertiesOracle)
+		reviews.write.mode(SaveMode.Overwrite).jdbc(urlOracle, "review", connectionPropertiesOracle)
 		// Libération de la mémoire
 		reviews.unpersist()
 
 
 		// Enregistrement du DataFrame visits dans la table "visit"
-		// visits.write.mode(SaveMode.Overwrite).jdbc(urlOracle, "visit", connectionPropertiesOracle)
+		visits.write.mode(SaveMode.Overwrite).jdbc(urlOracle, "visit", connectionPropertiesOracle)
 		// Libération de la mémoire
 		visits.unpersist()
 
@@ -615,7 +615,7 @@ object App {
 		// Réorganisation des colonnes du DataFrame business
 		business = business.select("business_id", "name", "main_category", "address", "postal_code", "city", "state", "latitude", "longitude", "avg_stars", "review_count", "is_open", "nb_visits", "nb_tips", "is_open_monday", "is_open_tuesday", "is_open_wednesday", "is_open_thursday", "is_open_friday", "is_open_saturday", "is_open_sunday")
 		// Enregistrement du DataFrame business dans la table "business"
-		// business.write.mode(SaveMode.Overwrite).jdbc(urlOracle, "business", connectionPropertiesOracle)
+		business.write.mode(SaveMode.Overwrite).jdbc(urlOracle, "business", connectionPropertiesOracle)
 		// Libération de la mémoire
 		business.unpersist()
 
@@ -624,21 +624,10 @@ object App {
 
 
 		// Enregistrement du DataFrame user dans la table "consumer" (user est un mot réservé en Oracle)
-		// users.write
-		// 	.mode(SaveMode.Overwrite)
-		// 	.format("jdbc") // dialect par défaut
-		// 	.jdbc(urlOracle, "consumer", connectionPropertiesOracle)
+		users.write.mode(SaveMode.Overwrite).jdbc(urlOracle, "consumer", connectionPropertiesOracle)
 		// Libération de la mémoire
 		users.unpersist()
 
-
-
-		/******************************************************************
-			Création d'index sur les tables pour accélérer les requêtes
-		*******************************************************************/
-
-		// Création d'un index sur la colonne "business_id" de la table "review"
-		// spark.sql("CREATE INDEX review_business_id_index ON review(business_id)")
 
 		// Arrêt de la session Spark
 		spark.stop()
